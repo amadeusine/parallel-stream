@@ -1,8 +1,8 @@
-use async_std::prelude::*;
 use async_std::future::Future;
-use pin_project_lite::pin_project;
-use async_std::task::{self, Context, Poll};
+use async_std::prelude::*;
 use async_std::sync::{self, Receiver, Sender};
+use async_std::task::{self, Context, Poll};
+use pin_project_lite::pin_project;
 
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -59,13 +59,14 @@ impl Any {
                 task::spawn(async move {
                     // Execute the closure.
                     let res = f(item).await;
+                    value.fetch_or(res, Ordering::SeqCst);
 
                     // Wake up the receiver if we know we're done.
                     ref_count.fetch_sub(1, Ordering::SeqCst);
-                    if res {
-                        value.fetch_or(true, Ordering::SeqCst);
-                        sender.send(()).await;
-                    } else if exhausted.load(Ordering::SeqCst) && ref_count.load(Ordering::SeqCst) == 0 {
+                    if value.load(Ordering::SeqCst)
+                        || (exhausted.load(Ordering::SeqCst)
+                            && ref_count.load(Ordering::SeqCst) == 0)
+                    {
                         sender.send(()).await;
                     }
                 });
@@ -91,13 +92,10 @@ impl Future for Any {
 
 #[async_std::test]
 async fn smoke() {
-    let s = async_std::stream::repeat(5usize);
+    let s = async_std::stream::from_iter(vec![6, 9, 0, 7, 10]);
     let result = crate::from_stream(s)
-        .take(3)
-        .any(|n| async move {
-            n * 2 < 9
-        })
+        .any(|n| async move { n * 2 < 9 })
         .await;
-    
-    assert_eq!(result, false);
+
+    assert!(result);
 }

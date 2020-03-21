@@ -5,17 +5,17 @@ use std::pin::Pin;
 
 use crate::FromParallelStream;
 
+pub use any::Any;
 pub use for_each::ForEach;
 pub use map::Map;
 pub use next::NextFuture;
 pub use take::Take;
-pub use any::Any;
 
+mod any;
 mod for_each;
 mod map;
 mod next;
 mod take;
-mod any;
 
 /// Parallel version of the standard `Stream` trait.
 pub trait ParallelStream: Sized + Send + Sync + Unpin + 'static {
